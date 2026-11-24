@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#11653b">
+<link rel="manifest" href="/manifest.json">
+<title>CSTRACKER</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+<div id="toast" role="status"></div>
+
+<section id="authView" class="auth-shell">
+  <div class="auth-card">
+    <div class="brand brand-large"><span class="brand-mark">CS</span><div><b>CSTRACKER</b></div></div>
+    <div class="auth-tabs"><button type="button" class="active" data-auth="login">Sign in</button><button type="button" data-auth="register">Register</button></div>
+    <form id="loginForm">
+      <label>Campus email or username<input id="identifier" required autocomplete="username" placeholder="you@cvsu.edu.ph"></label>
+      <label>Password<input id="password" type="password" required autocomplete="current-password" placeholder="Your password"></label>
+      <button class="primary wide">Sign in</button><button type="button" class="text-btn" id="forgotPasswordBtn">Forgot password?</button>
+      <div class="demo-row"><button type="button" data-demo="student">Student</button><button type="button" data-demo="professor">Professor</button><button type="button" data-demo="moderator">Moderator</button><button type="button" data-demo="classrep">Class Rep</button><button type="button" data-demo="admin">Admin</button></div>
+      <p class="tiny-note">Your data is saved securely online.</p>
+    </form>
+    <form id="registerForm" class="hidden">
+      <div class="form-grid">
+        <label>Student ID<input name="studentId" type="text" inputmode="numeric" autocomplete="off" required placeholder="202413724"></label>
+        <label>First name<input name="firstName" type="text" required></label>
+        <label>Middle name<input name="middleName" type="text"></label>
+        <label>Last name<input name="lastName" type="text" required></label>
+        <label>Campus email<input name="campusEmail" type="email" required placeholder="yourname@cvsu.edu.ph" pattern="^[^@\s]+@cvsu\.edu\.ph$"></label>
+        <label>Guardian email<input name="guardianGmail" type="email" required></label>
+        <label>Password<input name="password" type="password" minlength="8" required></label>
+        <label>Student type<select name="isIrregular" id="irregular"><option value="0">Regular</option><option value="1">Irregular</option></select></label>
+      <div class="recovery-card"><b>Password recovery</b><small>Choose 3 questions. You will answer these questions if you need to reset your password.</small><div id="recoveryQuestions"></div></div>
+      </div>
+      <label id="irregSubjects" class="hidden">Subjects for this term<input name="enrolledSubjects" placeholder="COSC75, COSC80"></label>
+      <button class="primary wide">Create account</button>
+      <p class="tiny-note">No verification email is needed.</p>
+    </form>
+  </div>
+</section>
+
+<div id="roleChoiceModal" class="modal hidden">
+  <div class="modal-card"><button class="modal-close" id="closeRoleChoice" type="button">×</button><h2>Choose your view</h2><p class="muted">This account has more than one role.</p><div id="roleChoice" class="role-choice"></div></div>
+</div>
+
+<div id="forgotModal" class="modal hidden"><div class="modal-card forgot-card"><button class="modal-close" id="closeForgot" type="button">×</button><h2>Forgot password</h2><div id="forgotContent"></div></div></div>
+
+<div id="logoutModal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="logoutTitle">
+  <div class="modal-card confirm-card"><h2 id="logoutTitle">Sign out?</h2><p class="muted">Are you sure you want to sign out of CSTRACKER?</p><div class="confirm-actions"><button type="button" class="secondary" id="logoutCancel">Stay signed in</button><button type="button" class="danger-btn" id="logoutConfirm">Yes, sign out</button></div></div>
+</div>
+
+<div id="imgLightbox" class="modal hidden">
+  <div class="lightbox-inner"><button class="modal-close" id="closeLightbox" type="button">×</button><img id="lightboxImg" src="" alt=""></div>
+</div>
+
+<section id="appView" class="app-shell hidden">
+<header class="topbar"><div class="brand"><span class="brand-mark">CS</span><div><b>CSTRACKER</b></div></div><div class="top-actions"><span id="clock"></span><button id="themeBtn">Dark</button><button id="logout" class="logout-btn" type="button">Sign out</button></div></header>
+<div class="layout">
+<aside class="sidebar">
+  <button class="profile-shortcut" id="profileShortcut" type="button" title="Open your profile"><div id="avatar">CS</div><div class="profile-shortcut-text"><b id="userName">Student</b><small id="userRole">Student</small><span>View Profile</span></div><strong class="profile-arrow">›</strong></button>
+  <nav id="nav">
+    <button data-page="dashboard" class="active">Dashboard</button>
+    <div class="nav-group-label">Academic</div>
+    <button data-page="schedule">Schedule</button>
+    <button data-page="calendar">Calendar</button>
+    <button data-page="announcements">Announcements</button>
+    <button data-page="attendance">Attendance</button>
+    <button data-page="scanner" class="prof-nav hidden">QR Scanner</button>
+    <button data-page="resources">Class files</button>
+    <button data-page="excuse">Excuse letters</button>
+    <button data-page="warnings" class="staff-nav hidden">Warnings</button>
+    <div class="nav-group-label">Personal details</div>
+    <button data-page="profile" class="profile-nav">👤&nbsp; My Profile</button>
+    <button data-page="qr">My QR</button>
+    <button data-page="inbox">Messages</button>
+    <div class="nav-group-label admin-nav hidden">Management</div>
+    <button data-page="admin" class="admin-nav hidden">Administration</button>
+  </nav>
+</aside>
+<main id="main"></main>
+</div>
+</section>
+
+<script>
+document.addEventListener('DOMContentLoaded',()=>{
+  const tabs=document.querySelectorAll('.auth-tabs [data-auth]');
+  const login=document.getElementById('loginForm'), register=document.getElementById('registerForm');
+  tabs.forEach(tab=>tab.addEventListener('click',()=>{const isReg=tab.dataset.auth==='register';tabs.forEach(x=>x.classList.toggle('active',x===tab));login.classList.toggle('hidden',isReg);register.classList.toggle('hidden',!isReg)}));
+});
+</script>
+<script src="/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,6 @@
+{
+  "name": "CSTRACKER",
+  "description": "Android class tracker for schedules, calendar, announcements, QR attendance, excuse letters, class files, and messaging.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

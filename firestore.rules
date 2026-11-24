@@ -1,0 +1,585 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Core primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    function isValidEmailId(id) {
+      return id is string && id.size() >= 3 && id.size() <= 100 &&
+        id.matches('^[a-z0-9._%+\\-]+@[a-z0-9.\\-]+\\.[a-z]{2,}$');
+    }
+
+    function hasVerifiedEmail() {
+      return isSignedIn() &&
+        'email_verified' in request.auth.token &&
+        request.auth.token.email_verified == true &&
+        'email' in request.auth.token &&
+        request.auth.token.email is string;
+    }
+
+    function isBootstrappedAdmin() {
+      return hasVerifiedEmail() &&
+        request.auth.token.email.lower() == 'ramilsamuelignacio@gmail.com';
+    }
+
+    function isAdmin() {
+      return isBootstrappedAdmin() || (
+        isSignedIn() &&
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid))
+      );
+    }
+
+    function hasRoleInviteFor(expectedRole) {
+      return hasVerifiedEmail() &&
+        exists(/databases/$(database)/documents/role_invites/$(request.auth.token.email.lower())) &&
+        get(/databases/$(database)/documents/role_invites/$(request.auth.token.email.lower())).data.role == expectedRole;
+    }
+
+    function hasStaffDoc() {
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/staff_roles/$(request.auth.uid));
+    }
+
+    function staffRole() {
+      return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data.role;
+    }
+
+    function staffSubrole() {
+      return get(/databases/$(database)/documents/staff_roles/$(request.auth.uid)).data.subrole;
+    }
+
+    function isStaff() {
+      return isAdmin() || (
+        hasStaffDoc() && (
+          staffRole() in ['professor', 'moderator', 'class_rep', 'classrep', 'admin'] ||
+          staffSubrole() in ['moderator', 'class_rep', 'classrep', 'admin']
+        )
+      );
+    }
+
+    function isProfessor() {
+      return hasStaffDoc() && staffRole() == 'professor';
+    }
+
+    function isProfessorOrAdmin() {
+      return isAdmin() || (
+        hasStaffDoc() && staffRole() in ['professor', 'admin']
+      );
+    }
+
+    function isReviewer() {
+      return isAdmin() || (
+        hasStaffDoc() && (
+          staffRole() in ['professor', 'moderator', 'admin'] ||
+          staffSubrole() in ['moderator', 'admin']
+        )
+      );
+    }
+
+    // Validation helpers
+    function isValidAdminRecord(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.grantedBy is string && data.grantedBy.size() >= 1 && data.grantedBy.size() <= 128 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStaffRole(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.role in ['student', 'professor', 'moderator', 'class_rep', 'classrep', 'admin'] &&
+        (!('subrole' in data) || data.subrole == null || data.subrole in ['moderator', 'class_rep', 'classrep', 'admin']) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidRoleInvite(data) {
+      return data.email is string && isValidEmailId(data.email) &&
+        data.role in ['student', 'professor', 'moderator', 'class_rep', 'classrep', 'admin'] &&
+        (!('subrole' in data) || data.subrole == null || data.subrole in ['moderator', 'class_rep', 'classrep', 'admin']) &&
+        data.invitedBy is string && data.invitedBy.size() >= 1 && data.invitedBy.size() <= 128 &&
+        (!('note' in data) || data.note == null || (data.note is string && data.note.size() <= 200)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.role in ['student', 'professor', 'moderator', 'class_rep', 'classrep', 'admin'] &&
+        (!('subrole' in data) || data.subrole == null || data.subrole in ['moderator', 'class_rep', 'classrep', 'admin']) &&
+        (!('requestedRole' in data) || data.requestedRole == null || data.requestedRole in ['student', 'professor', 'moderator', 'class_rep', 'classrep', 'admin']) &&
+        data.studentId is string && data.studentId.size() <= 20 &&
+        data.firstName is string && data.firstName.size() >= 1 && data.firstName.size() <= 50 &&
+        (!('middleName' in data) || data.middleName == null || (data.middleName is string && data.middleName.size() <= 50)) &&
+        data.lastName is string && data.lastName.size() >= 1 && data.lastName.size() <= 50 &&
+        data.campusEmail is string && data.campusEmail.size() >= 3 && data.campusEmail.size() <= 100 &&
+        (!('guardianGmail' in data) || data.guardianGmail == null || (data.guardianGmail is string && data.guardianGmail.size() <= 100)) &&
+        data.irregular is bool &&
+        data.enrolledSubjects is list && data.enrolledSubjects.size() <= 12 &&
+        (data.enrolledSubjects.size() == 0 || data.enrolledSubjects[0] is string) &&
+        data.qrTokenHash is string && data.qrTokenHash.size() == 64 && data.qrTokenHash.matches('^[0-9a-f]{64}$') &&
+        (!('profilePhotoBase64' in data) || data.profilePhotoBase64 == null || (data.profilePhotoBase64 is string && data.profilePhotoBase64.size() <= 220000)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidDirectoryEntry(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 150 &&
+        (!('studentIdLabel' in data) || data.studentIdLabel == null || (data.studentIdLabel is string && data.studentIdLabel.size() <= 20)) &&
+        data.role in ['student', 'professor', 'moderator', 'class_rep', 'classrep', 'admin'] &&
+        (!('subrole' in data) || data.subrole == null || data.subrole in ['moderator', 'class_rep', 'classrep', 'admin']) &&
+        data.staffVisible is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidQrToken(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 150 &&
+        data.studentId is string && data.studentId.size() <= 20 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSubject(data) {
+      return data.classGroup == 'CS-MAIN' &&
+        data.code is string && data.code.size() >= 2 && data.code.size() <= 20 &&
+        data.name is string && data.name.size() >= 1 && data.name.size() <= 120 &&
+        data.units is int && data.units >= 1 && data.units <= 10 &&
+        data.professor is string && data.professor.size() >= 1 && data.professor.size() <= 100 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidSchedule(data) {
+      return data.classGroup == 'CS-MAIN' &&
+        data.day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] &&
+        data.startTime is string && data.startTime.size() == 5 && data.startTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        data.endTime is string && data.endTime.size() == 5 && data.endTime.matches('^([01][0-9]|2[0-3]):[0-5][0-9]$') &&
+        data.subjectCode is string && data.subjectCode.size() >= 2 && data.subjectCode.size() <= 20 &&
+        (!('room' in data) || data.room == null || (data.room is string && data.room.size() <= 20)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidCalendarEvent(data) {
+      return data.classGroup == 'CS-MAIN' &&
+        data.date is string && data.date.size() == 10 && data.date.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.type in ['Quiz', 'Exam', 'Holiday', 'Deadline', 'Class', 'Reminder'] &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 500)) &&
+        data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAnnouncement(data) {
+      return data.classGroup == 'CS-MAIN' &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 3000 &&
+        (!('subjectCode' in data) || data.subjectCode == null || (data.subjectCode is string && data.subjectCode.size() <= 20)) &&
+        (!('subjectName' in data) || data.subjectName == null || (data.subjectName is string && data.subjectName.size() <= 120)) &&
+        data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 150 &&
+        (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 180)) &&
+        (!('attachmentType' in data) || data.attachmentType == null || (data.attachmentType is string && data.attachmentType.size() <= 100)) &&
+        (!('attachmentBase64' in data) || data.attachmentBase64 == null || (data.attachmentBase64 is string && data.attachmentBase64.size() <= 350000)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidAttendance(data) {
+      return data.studentUid is string && data.studentUid.size() >= 1 && data.studentUid.size() <= 128 &&
+        data.studentId is string && data.studentId.size() <= 20 &&
+        data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 150 &&
+        data.subjectCode is string && data.subjectCode.size() >= 2 && data.subjectCode.size() <= 20 &&
+        (!('subjectName' in data) || data.subjectName == null || (data.subjectName is string && data.subjectName.size() <= 120)) &&
+        data.classDate is string && data.classDate.size() == 10 && data.classDate.matches('^\\d{4}-\\d{2}-\\d{2}$') &&
+        data.status in ['Present', 'Late', 'Absent'] &&
+        data.verifiedBy is string && data.verifiedBy.size() >= 1 && data.verifiedBy.size() <= 128 &&
+        data.verifiedByName is string && data.verifiedByName.size() >= 1 && data.verifiedByName.size() <= 150 &&
+        (!('checkInMethod' in data) || data.checkInMethod == null || (data.checkInMethod is string && data.checkInMethod.size() <= 40)) &&
+        (!('qrPayload' in data) || data.qrPayload == null || (data.qrPayload is string && data.qrPayload.size() <= 300)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidResource(data) {
+      return data.classGroup == 'CS-MAIN' &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 100 &&
+        (!('description' in data) || data.description == null || (data.description is string && data.description.size() <= 500)) &&
+        (!('subjectCode' in data) || data.subjectCode == null || (data.subjectCode is string && data.subjectCode.size() <= 20)) &&
+        (!('subjectName' in data) || data.subjectName == null || (data.subjectName is string && data.subjectName.size() <= 120)) &&
+        data.authorUid is string && data.authorUid.size() >= 1 && data.authorUid.size() <= 128 &&
+        data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 150 &&
+        data.fileName is string && data.fileName.size() >= 1 && data.fileName.size() <= 180 &&
+        data.fileSizeBytes is int && data.fileSizeBytes >= 1 && data.fileSizeBytes <= 10485760 &&
+        (!('fileBase64' in data) || data.fileBase64 == null || (data.fileBase64 is string && data.fileBase64.size() <= 450000)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidExcuseLetter(data) {
+      return data.studentUid is string && data.studentUid.size() >= 1 && data.studentUid.size() <= 128 &&
+        data.studentId is string && data.studentId.size() <= 20 &&
+        data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 150 &&
+        data.subjectCode is string && data.subjectCode.size() >= 2 && data.subjectCode.size() <= 20 &&
+        (!('subjectName' in data) || data.subjectName == null || (data.subjectName is string && data.subjectName.size() <= 120)) &&
+        data.reason is string && data.reason.size() >= 1 && data.reason.size() <= 2000 &&
+        (!('attachmentName' in data) || data.attachmentName == null || (data.attachmentName is string && data.attachmentName.size() <= 180)) &&
+        (!('attachmentType' in data) || data.attachmentType == null || (data.attachmentType is string && data.attachmentType.size() <= 100)) &&
+        (!('attachmentBase64' in data) || data.attachmentBase64 == null || (data.attachmentBase64 is string && data.attachmentBase64.size() <= 350000)) &&
+        data.status in ['Pending', 'Approved', 'Rejected'] &&
+        (!('reviewedBy' in data) || data.reviewedBy == null || (data.reviewedBy is string && data.reviewedBy.size() <= 128)) &&
+        (!('reviewerName' in data) || data.reviewerName == null || (data.reviewerName is string && data.reviewerName.size() <= 150)) &&
+        (!('reviewNote' in data) || data.reviewNote == null || (data.reviewNote is string && data.reviewNote.size() <= 500)) &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidWarning(data) {
+      return data.studentUid is string && data.studentUid.size() >= 1 && data.studentUid.size() <= 128 &&
+        data.studentName is string && data.studentName.size() >= 1 && data.studentName.size() <= 150 &&
+        data.note is string && data.note.size() >= 1 && data.note.size() <= 500 &&
+        data.createdBy is string && data.createdBy.size() >= 1 && data.createdBy.size() <= 128 &&
+        data.createdByName is string && data.createdByName.size() >= 1 && data.createdByName.size() <= 150 &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMessage(data) {
+      return data.senderUid is string && data.senderUid.size() >= 1 && data.senderUid.size() <= 128 &&
+        data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 150 &&
+        data.receiverUid is string && data.receiverUid.size() >= 1 && data.receiverUid.size() <= 128 &&
+        data.receiverName is string && data.receiverName.size() >= 1 && data.receiverName.size() <= 150 &&
+        data.participantUids is list && data.participantUids.size() == 2 &&
+        data.participantUids[0] is string && data.participantUids[1] is string &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 1000 &&
+        data.read is bool &&
+        isValidTimestamp(data.createdAt) &&
+        isValidTimestamp(data.updatedAt);
+    }
+
+    // 1. Admins
+    match /admins/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) &&
+        (isAdmin() || (request.auth.uid == userId && incoming().grantedBy == userId && hasRoleInviteFor('admin'))) &&
+        incoming().keys().hasAll(['userId', 'grantedBy', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'grantedBy', 'createdAt', 'updatedAt']) &&
+        incoming().userId == userId &&
+        isValidAdminRecord(incoming());
+      allow update: if isAdmin() && isValidId(userId) &&
+        isValidAdminRecord(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['grantedBy', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // 2. Staff roles (trusted RBAC source)
+    match /staff_roles/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) &&
+        (isAdmin() || (request.auth.uid == userId && incoming().role != 'student' && hasRoleInviteFor(incoming().role))) &&
+        incoming().keys().hasAll(['userId', 'role', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'role', 'subrole', 'createdAt', 'updatedAt']) &&
+        incoming().userId == userId &&
+        isValidStaffRole(incoming());
+      allow update: if isAdmin() && isValidId(userId) &&
+        isValidStaffRole(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['role', 'subrole', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // 2b. Admin pre-approved role invites by verified email
+    match /role_invites/{inviteEmail} {
+      allow get: if isSignedIn() && isValidEmailId(inviteEmail) && (
+        isAdmin() ||
+        (hasVerifiedEmail() && request.auth.token.email.lower() == inviteEmail)
+      );
+      allow list: if isAdmin();
+      allow create: if isAdmin() && isValidEmailId(inviteEmail) &&
+        incoming().email == inviteEmail &&
+        incoming().invitedBy == request.auth.uid &&
+        incoming().keys().hasAll(['email', 'role', 'invitedBy', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['email', 'role', 'subrole', 'invitedBy', 'note', 'createdAt', 'updatedAt']) &&
+        isValidRoleInvite(incoming());
+      allow update: if isAdmin() && isValidEmailId(inviteEmail) &&
+        isValidRoleInvite(incoming()) &&
+        incoming().email == existing().email &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['role', 'subrole', 'invitedBy', 'note', 'updatedAt']);
+      allow delete: if isAdmin() && isValidEmailId(inviteEmail);
+    }
+
+    // 3. Private user profiles (PII isolated to owner + admin)
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isSignedIn() && isValidId(userId) &&
+        request.auth.uid == userId &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll(['userId', 'role', 'studentId', 'firstName', 'lastName', 'campusEmail', 'irregular', 'enrolledSubjects', 'qrTokenHash', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'role', 'subrole', 'requestedRole', 'studentId', 'firstName', 'middleName', 'lastName', 'campusEmail', 'guardianGmail', 'irregular', 'enrolledSubjects', 'qrTokenHash', 'profilePhotoBase64', 'createdAt', 'updatedAt']) &&
+        (incoming().role == 'student' || isAdmin() || hasRoleInviteFor(incoming().role)) &&
+        (!('subrole' in incoming()) || incoming().subrole == null || isAdmin()) &&
+        isValidUserProfile(incoming());
+      allow update: if isSignedIn() && isValidId(userId) &&
+        isValidUserProfile(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().qrTokenHash == existing().qrTokenHash &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['role', 'subrole', 'requestedRole', 'studentId', 'firstName', 'middleName', 'lastName', 'campusEmail', 'guardianGmail', 'irregular', 'enrolledSubjects', 'profilePhotoBase64', 'updatedAt'])) ||
+          (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['requestedRole', 'studentId', 'firstName', 'middleName', 'lastName', 'campusEmail', 'guardianGmail', 'irregular', 'enrolledSubjects', 'profilePhotoBase64', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId) && userId != request.auth.uid;
+    }
+
+    // 4. Non-PII public class directory
+    match /directory/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (request.auth.uid == userId || existing().staffVisible == true || isStaff());
+      allow list: if isSignedIn() && (resource.data.staffVisible == true || resource.data.userId == request.auth.uid || isStaff());
+      allow create: if isSignedIn() && isValidId(userId) &&
+        request.auth.uid == userId &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll(['userId', 'displayName', 'role', 'staffVisible', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'displayName', 'studentIdLabel', 'role', 'subrole', 'staffVisible', 'createdAt', 'updatedAt']) &&
+        ((incoming().role == 'student' && (!('subrole' in incoming()) || incoming().subrole == null) && incoming().staffVisible == false) || isAdmin() || (hasRoleInviteFor(incoming().role) && (!('subrole' in incoming()) || incoming().subrole == null) && incoming().staffVisible == (incoming().role != 'student'))) &&
+        isValidDirectoryEntry(incoming());
+      allow update: if isSignedIn() && isValidId(userId) &&
+        isValidDirectoryEntry(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          (isAdmin() && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'studentIdLabel', 'role', 'subrole', 'staffVisible', 'updatedAt'])) ||
+          (request.auth.uid == userId && incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'studentIdLabel', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(userId);
+    }
+
+    // 5. QR Token mapping
+    match /qr_tokens/{tokenHash} {
+      allow get: if isSignedIn() && isValidId(tokenHash) && (existing().userId == request.auth.uid || isProfessor());
+      allow list: if false;
+      allow create: if isSignedIn() && isValidId(tokenHash) &&
+        tokenHash.matches('^[0-9a-f]{64}$') &&
+        incoming().userId == request.auth.uid &&
+        incoming().keys().hasAll(['userId', 'displayName', 'studentId', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'displayName', 'studentId', 'createdAt', 'updatedAt']) &&
+        isValidQrToken(incoming());
+      allow update: if isSignedIn() && isValidId(tokenHash) &&
+        isValidQrToken(incoming()) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        request.auth.uid == existing().userId &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'studentId', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(tokenHash);
+    }
+
+    // 6. Subjects
+    match /subjects/{subjectId} {
+      allow get: if isSignedIn() && isValidId(subjectId);
+      allow list: if isSignedIn() && resource.data.classGroup == 'CS-MAIN';
+      allow create: if isAdmin() && isValidId(subjectId) &&
+        incoming().keys().hasAll(['classGroup', 'code', 'name', 'units', 'professor', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['classGroup', 'code', 'name', 'units', 'professor', 'createdAt', 'updatedAt']) &&
+        isValidSubject(incoming());
+      allow update: if isAdmin() && isValidId(subjectId) &&
+        isValidSubject(incoming()) &&
+        incoming().classGroup == existing().classGroup &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['code', 'name', 'units', 'professor', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(subjectId);
+    }
+
+    // 7. Schedules
+    match /schedules/{scheduleId} {
+      allow get: if isSignedIn() && isValidId(scheduleId);
+      allow list: if isSignedIn() && resource.data.classGroup == 'CS-MAIN';
+      allow create: if isAdmin() && isValidId(scheduleId) &&
+        incoming().keys().hasAll(['classGroup', 'day', 'startTime', 'endTime', 'subjectCode', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['classGroup', 'day', 'startTime', 'endTime', 'subjectCode', 'room', 'createdAt', 'updatedAt']) &&
+        isValidSchedule(incoming());
+      allow update: if isAdmin() && isValidId(scheduleId) &&
+        isValidSchedule(incoming()) &&
+        incoming().classGroup == existing().classGroup &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['day', 'startTime', 'endTime', 'subjectCode', 'room', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(scheduleId);
+    }
+
+    // 8. Calendar Events
+    match /calendar_events/{eventId} {
+      allow get: if isSignedIn() && isValidId(eventId);
+      allow list: if isSignedIn() && resource.data.classGroup == 'CS-MAIN';
+      allow create: if isStaff() && isValidId(eventId) &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().keys().hasAll(['classGroup', 'date', 'type', 'title', 'authorUid', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['classGroup', 'date', 'type', 'title', 'description', 'authorUid', 'createdAt', 'updatedAt']) &&
+        isValidCalendarEvent(incoming());
+      allow update: if isStaff() && isValidId(eventId) &&
+        isValidCalendarEvent(incoming()) &&
+        incoming().classGroup == existing().classGroup &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['date', 'type', 'title', 'description', 'updatedAt']);
+      allow delete: if isStaff() && isValidId(eventId);
+    }
+
+    // 9. Announcements
+    match /announcements/{announcementId} {
+      allow get: if isSignedIn() && isValidId(announcementId);
+      allow list: if isSignedIn() && resource.data.classGroup == 'CS-MAIN';
+      allow create: if isStaff() && isValidId(announcementId) &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().keys().hasAll(['classGroup', 'title', 'body', 'authorUid', 'authorName', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['classGroup', 'title', 'body', 'subjectCode', 'subjectName', 'authorUid', 'authorName', 'attachmentName', 'attachmentType', 'attachmentBase64', 'createdAt', 'updatedAt']) &&
+        isValidAnnouncement(incoming());
+      allow update: if isStaff() && isValidId(announcementId) &&
+        isValidAnnouncement(incoming()) &&
+        incoming().classGroup == existing().classGroup &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'subjectCode', 'subjectName', 'updatedAt']);
+      allow delete: if isStaff() && isValidId(announcementId);
+    }
+
+    // 10. Attendance
+    match /attendance/{recordId} {
+      allow get: if isSignedIn() && isValidId(recordId) && (existing().studentUid == request.auth.uid || isReviewer());
+      allow list: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isReviewer());
+      allow create: if isValidId(recordId) &&
+        isValidAttendance(incoming()) &&
+        incoming().keys().hasAll(['studentUid', 'studentId', 'studentName', 'subjectCode', 'classDate', 'status', 'verifiedBy', 'verifiedByName', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['studentUid', 'studentId', 'studentName', 'subjectCode', 'subjectName', 'classDate', 'status', 'verifiedBy', 'verifiedByName', 'checkInMethod', 'qrPayload', 'createdAt', 'updatedAt']) &&
+        (
+          (isProfessor() && incoming().verifiedBy == request.auth.uid) ||
+          (isSignedIn() &&
+            recordId == (request.auth.uid + '_' + incoming().subjectCode + '_' + incoming().classDate) &&
+            incoming().studentUid == request.auth.uid &&
+            incoming().verifiedBy == request.auth.uid &&
+            incoming().status in ['Present', 'Late'])
+        );
+      allow update: if isProfessor() && isValidId(recordId) &&
+        isValidAttendance(incoming()) &&
+        incoming().studentUid == existing().studentUid &&
+        incoming().subjectCode == existing().subjectCode &&
+        incoming().classDate == existing().classDate &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().verifiedBy == request.auth.uid &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'verifiedBy', 'verifiedByName', 'checkInMethod', 'qrPayload', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(recordId);
+    }
+
+    // 11. Resources (Class files)
+    match /resources/{resourceId} {
+      allow get: if isSignedIn() && isValidId(resourceId);
+      allow list: if isSignedIn() && resource.data.classGroup == 'CS-MAIN';
+      allow create: if isProfessorOrAdmin() && isValidId(resourceId) &&
+        incoming().authorUid == request.auth.uid &&
+        incoming().keys().hasAll(['classGroup', 'title', 'authorUid', 'authorName', 'fileName', 'fileSizeBytes', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['classGroup', 'title', 'description', 'subjectCode', 'subjectName', 'authorUid', 'authorName', 'fileName', 'fileSizeBytes', 'fileBase64', 'createdAt', 'updatedAt']) &&
+        isValidResource(incoming());
+      allow update: if isProfessorOrAdmin() && isValidId(resourceId) &&
+        isValidResource(incoming()) &&
+        incoming().classGroup == existing().classGroup &&
+        incoming().authorUid == existing().authorUid &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'subjectCode', 'subjectName', 'updatedAt']);
+      allow delete: if isProfessorOrAdmin() && isValidId(resourceId);
+    }
+
+    // 12. Excuse Letters
+    match /excuse_letters/{letterId} {
+      allow get: if isSignedIn() && isValidId(letterId) && (existing().studentUid == request.auth.uid || isReviewer());
+      allow list: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isReviewer());
+      allow create: if isSignedIn() && isValidId(letterId) &&
+        incoming().studentUid == request.auth.uid &&
+        incoming().status == 'Pending' &&
+        (!('reviewedBy' in incoming()) || incoming().reviewedBy == null) &&
+        incoming().keys().hasAll(['studentUid', 'studentId', 'studentName', 'subjectCode', 'reason', 'status', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['studentUid', 'studentId', 'studentName', 'subjectCode', 'subjectName', 'reason', 'attachmentName', 'attachmentType', 'attachmentBase64', 'status', 'reviewedBy', 'reviewerName', 'reviewNote', 'createdAt', 'updatedAt']) &&
+        isValidExcuseLetter(incoming());
+      allow update: if isSignedIn() && isValidId(letterId) &&
+        isValidExcuseLetter(incoming()) &&
+        incoming().studentUid == existing().studentUid &&
+        incoming().subjectCode == existing().subjectCode &&
+        incoming().createdAt == existing().createdAt &&
+        (
+          isAdmin() ||
+          (isReviewer() && existing().status == 'Pending' &&
+            incoming().reviewedBy == request.auth.uid &&
+            incoming().diff(existing()).affectedKeys().hasOnly(['status', 'reviewedBy', 'reviewerName', 'reviewNote', 'updatedAt']))
+        );
+      allow delete: if isAdmin() && isValidId(letterId);
+    }
+
+    // 13. Warnings
+    match /warnings/{warningId} {
+      allow get: if isSignedIn() && isValidId(warningId) && (existing().studentUid == request.auth.uid || isReviewer());
+      allow list: if isSignedIn() && (resource.data.studentUid == request.auth.uid || isReviewer());
+      allow create: if isReviewer() && isValidId(warningId) &&
+        incoming().createdBy == request.auth.uid &&
+        incoming().keys().hasAll(['studentUid', 'studentName', 'note', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['studentUid', 'studentName', 'note', 'createdBy', 'createdByName', 'createdAt', 'updatedAt']) &&
+        isValidWarning(incoming());
+      allow update: if false;
+      allow delete: if isAdmin() && isValidId(warningId);
+    }
+
+    // 14. Direct Messages
+    match /messages/{messageId} {
+      allow get: if isSignedIn() && isValidId(messageId) && (request.auth.uid in existing().participantUids);
+      allow list: if isSignedIn() && (request.auth.uid in resource.data.participantUids);
+      allow create: if isSignedIn() && isValidId(messageId) &&
+        incoming().senderUid == request.auth.uid &&
+        incoming().receiverUid != request.auth.uid &&
+        incoming().read == false &&
+        incoming().keys().hasAll(['senderUid', 'senderName', 'receiverUid', 'receiverName', 'participantUids', 'message', 'read', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['senderUid', 'senderName', 'receiverUid', 'receiverName', 'participantUids', 'message', 'read', 'createdAt', 'updatedAt']) &&
+        isValidMessage(incoming()) &&
+        request.auth.uid in incoming().participantUids &&
+        incoming().receiverUid in incoming().participantUids;
+      allow update: if isSignedIn() && isValidId(messageId) &&
+        isValidMessage(incoming()) &&
+        request.auth.uid == existing().receiverUid &&
+        incoming().senderUid == existing().senderUid &&
+        incoming().receiverUid == existing().receiverUid &&
+        incoming().participantUids == existing().participantUids &&
+        incoming().message == existing().message &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['read', 'updatedAt']);
+      allow delete: if isAdmin() && isValidId(messageId);
+    }
+  }
+}

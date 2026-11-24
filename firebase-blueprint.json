@@ -1,0 +1,318 @@
+{
+  "entities": {
+    "AdminRecord": {
+      "title": "AdminRecord",
+      "description": "Trusted administrator privilege record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "grantedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "grantedBy", "createdAt", "updatedAt"]
+    },
+    "StaffRoleRecord": {
+      "title": "StaffRoleRecord",
+      "description": "Admin-managed role assignment for staff and student subroles.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "professor", "moderator", "class_rep", "classrep", "admin"] },
+        "subrole": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role", "createdAt", "updatedAt"]
+    },
+    "RoleInvite": {
+      "title": "RoleInvite",
+      "description": "Admin pre-approved email invitation granting immediate role activation during registration.",
+      "type": "object",
+      "properties": {
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "professor", "moderator", "class_rep", "classrep", "admin"] },
+        "subrole": { "type": "string" },
+        "invitedBy": { "type": "string" },
+        "note": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "invitedBy", "createdAt", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile containing campus identity and PII.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "professor", "moderator", "class_rep", "classrep", "admin"] },
+        "subrole": { "type": "string" },
+        "requestedRole": { "type": "string", "enum": ["student", "professor", "moderator", "class_rep", "classrep", "admin"] },
+        "studentId": { "type": "string" },
+        "firstName": { "type": "string" },
+        "middleName": { "type": "string" },
+        "lastName": { "type": "string" },
+        "campusEmail": { "type": "string" },
+        "guardianGmail": { "type": "string" },
+        "irregular": { "type": "boolean" },
+        "enrolledSubjects": { "type": "array" },
+        "qrTokenHash": { "type": "string" },
+        "profilePhotoBase64": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "role", "studentId", "firstName", "lastName", "campusEmail", "irregular", "enrolledSubjects", "qrTokenHash", "createdAt", "updatedAt"]
+    },
+    "DirectoryEntry": {
+      "title": "DirectoryEntry",
+      "description": "Public non-PII class directory entry for messaging and role display.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "studentIdLabel": { "type": "string" },
+        "role": { "type": "string", "enum": ["student", "professor", "moderator", "class_rep", "classrep", "admin"] },
+        "subrole": { "type": "string" },
+        "staffVisible": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "role", "staffVisible", "createdAt", "updatedAt"]
+    },
+    "QrTokenEntry": {
+      "title": "QrTokenEntry",
+      "description": "Maps hashed student QR token to student identity for professor scanning.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "displayName": { "type": "string" },
+        "studentId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "displayName", "studentId", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "CS curriculum subject.",
+      "type": "object",
+      "properties": {
+        "classGroup": { "type": "string" },
+        "code": { "type": "string" },
+        "name": { "type": "string" },
+        "units": { "type": "integer" },
+        "professor": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classGroup", "code", "name", "units", "professor", "createdAt", "updatedAt"]
+    },
+    "ScheduleSlot": {
+      "title": "ScheduleSlot",
+      "description": "Weekly class schedule slot.",
+      "type": "object",
+      "properties": {
+        "classGroup": { "type": "string" },
+        "day": { "type": "string", "enum": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"] },
+        "startTime": { "type": "string" },
+        "endTime": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "room": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classGroup", "day", "startTime", "endTime", "subjectCode", "createdAt", "updatedAt"]
+    },
+    "CalendarEvent": {
+      "title": "CalendarEvent",
+      "description": "Academic calendar event.",
+      "type": "object",
+      "properties": {
+        "classGroup": { "type": "string" },
+        "date": { "type": "string" },
+        "type": { "type": "string", "enum": ["Quiz", "Exam", "Holiday", "Deadline", "Class", "Reminder"] },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classGroup", "date", "type", "title", "authorUid", "createdAt", "updatedAt"]
+    },
+    "Announcement": {
+      "title": "Announcement",
+      "description": "Class announcement with optional attachment.",
+      "type": "object",
+      "properties": {
+        "classGroup": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "attachmentType": { "type": "string" },
+        "attachmentBase64": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classGroup", "title", "body", "authorUid", "authorName", "createdAt", "updatedAt"]
+    },
+    "AttendanceRecord": {
+      "title": "AttendanceRecord",
+      "description": "Student attendance entry recorded by professor.",
+      "type": "object",
+      "properties": {
+        "studentUid": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "classDate": { "type": "string" },
+        "status": { "type": "string", "enum": ["Present", "Late", "Absent"] },
+        "verifiedBy": { "type": "string" },
+        "verifiedByName": { "type": "string" },
+        "checkInMethod": { "type": "string" },
+        "qrPayload": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentUid", "studentId", "studentName", "subjectCode", "classDate", "status", "verifiedBy", "verifiedByName", "createdAt", "updatedAt"]
+    },
+    "ClassResource": {
+      "title": "ClassResource",
+      "description": "Class PDF handout or study resource.",
+      "type": "object",
+      "properties": {
+        "classGroup": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "authorUid": { "type": "string" },
+        "authorName": { "type": "string" },
+        "fileName": { "type": "string" },
+        "fileSizeBytes": { "type": "integer" },
+        "fileBase64": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["classGroup", "title", "authorUid", "authorName", "fileName", "fileSizeBytes", "createdAt", "updatedAt"]
+    },
+    "ExcuseLetter": {
+      "title": "ExcuseLetter",
+      "description": "Student absence excuse submission and staff review.",
+      "type": "object",
+      "properties": {
+        "studentUid": { "type": "string" },
+        "studentId": { "type": "string" },
+        "studentName": { "type": "string" },
+        "subjectCode": { "type": "string" },
+        "subjectName": { "type": "string" },
+        "reason": { "type": "string" },
+        "attachmentName": { "type": "string" },
+        "attachmentType": { "type": "string" },
+        "attachmentBase64": { "type": "string" },
+        "status": { "type": "string", "enum": ["Pending", "Approved", "Rejected"] },
+        "reviewedBy": { "type": "string" },
+        "reviewerName": { "type": "string" },
+        "reviewNote": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentUid", "studentId", "studentName", "subjectCode", "reason", "status", "createdAt", "updatedAt"]
+    },
+    "WarningRecord": {
+      "title": "WarningRecord",
+      "description": "Attendance or academic reminder issued to a student.",
+      "type": "object",
+      "properties": {
+        "studentUid": { "type": "string" },
+        "studentName": { "type": "string" },
+        "note": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdByName": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["studentUid", "studentName", "note", "createdBy", "createdByName", "createdAt", "updatedAt"]
+    },
+    "DirectMessage": {
+      "title": "DirectMessage",
+      "description": "Direct message between two CSTRACKER users.",
+      "type": "object",
+      "properties": {
+        "senderUid": { "type": "string" },
+        "senderName": { "type": "string" },
+        "receiverUid": { "type": "string" },
+        "receiverName": { "type": "string" },
+        "participantUids": { "type": "array" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["senderUid", "senderName", "receiverUid", "receiverName", "participantUids", "message", "read", "createdAt", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/admins/{userId}": {
+      "schema": { "$ref": "#/entities/AdminRecord" },
+      "description": "Administrator privilege documents."
+    },
+    "/staff_roles/{userId}": {
+      "schema": { "$ref": "#/entities/StaffRoleRecord" },
+      "description": "Staff role assignments managed by admins."
+    },
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles isolated to owner and admins."
+    },
+    "/directory/{userId}": {
+      "schema": { "$ref": "#/entities/DirectoryEntry" },
+      "description": "Non-PII directory entries for class messaging and role listings."
+    },
+    "/qr_tokens/{tokenHash}": {
+      "schema": { "$ref": "#/entities/QrTokenEntry" },
+      "description": "Hashed QR token lookup records."
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "CS subjects catalog."
+    },
+    "/schedules/{scheduleId}": {
+      "schema": { "$ref": "#/entities/ScheduleSlot" },
+      "description": "Weekly class schedule slots."
+    },
+    "/calendar_events/{eventId}": {
+      "schema": { "$ref": "#/entities/CalendarEvent" },
+      "description": "Class calendar events."
+    },
+    "/announcements/{announcementId}": {
+      "schema": { "$ref": "#/entities/Announcement" },
+      "description": "Class announcements."
+    },
+    "/attendance/{recordId}": {
+      "schema": { "$ref": "#/entities/AttendanceRecord" },
+      "description": "Student attendance records."
+    },
+    "/resources/{resourceId}": {
+      "schema": { "$ref": "#/entities/ClassResource" },
+      "description": "Shared class PDF files and resources."
+    },
+    "/excuse_letters/{letterId}": {
+      "schema": { "$ref": "#/entities/ExcuseLetter" },
+      "description": "Student excuse letter submissions."
+    },
+    "/warnings/{warningId}": {
+      "schema": { "$ref": "#/entities/WarningRecord" },
+      "description": "Student attendance warnings."
+    },
+    "/messages/{messageId}": {
+      "schema": { "$ref": "#/entities/DirectMessage" },
+      "description": "Direct messages between users."
+    }
+  }
+}
